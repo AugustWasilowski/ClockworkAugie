@@ -8,11 +8,13 @@ class DatabaseCog:
 
     def create_table(self):
         create_table_query = """
-        CREATE TABLE IF NOT EXISTS chat_history (
+        CREATE TABLE IF NOT EXISTS 
+        chat_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             channel_id TEXT NOT NULL,
             user_id TEXT NOT NULL,
             message TEXT NOT NULL,
+            mp3path TEXT NOT NULL,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         );
         """
@@ -55,11 +57,11 @@ class DatabaseCog:
         else:
             return " You are a helpful assistant."
 
-    def insert_chat_history(self, channel_id, user_id, message, mp3_path=None, mp3_data=None):
+    def insert_chat_history(self, channel_id, user_id, message, mp3_path=None):
         self.cursor.execute("""
-                INSERT INTO chat_history (channel_id, user_id, message, mp3path, mp3)
-                VALUES (?, ?, ?, ?, ?);
-                """, (channel_id, user_id, message, mp3_path, mp3_data))
+                INSERT INTO chat_history (channel_id, user_id, message, mp3path)
+                VALUES (?, ?, ?, ?);
+                """, (channel_id, user_id, message, mp3_path))
         self.conn.commit()
 
     def close(self):
