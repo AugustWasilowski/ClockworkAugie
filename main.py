@@ -173,6 +173,7 @@ async def play(ctx, search: str):
 
     track = tracks[0]
     await vc.play(track)
+    ctx.respond(f"Playing {tracks[0].title} by {tracks[0].author}")
 
 
 if __name__ == '__main__':
