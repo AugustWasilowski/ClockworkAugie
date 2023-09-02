@@ -12,6 +12,7 @@ import json
 
 from cogs.DatabaseCog import DatabaseCog
 from cogs.mockinteraction import MockInteraction
+from cogs.logging import get_logger
 
 db_cog = DatabaseCog()
 
@@ -130,6 +131,7 @@ async def on_message(message):
 
 if __name__ == '__main__':
     bot.load_extension("cogs.ssa")
+    bot.load_extension("cogs.spotify")
 
     try:
         bot.run(os.getenv("BOT_TOKEN"))
