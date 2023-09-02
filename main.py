@@ -8,8 +8,9 @@ import openai
 import openai.error
 import discord
 from discord.ext import commands
+from discord import guild_only
 import json
-
+import wavelink
 from cogs.DatabaseCog import DatabaseCog
 from cogs.mockinteraction import MockInteraction
 
@@ -28,6 +29,7 @@ VOICE_CHANNEL_ID = os.getenv("VOICE_CHANNEL_ID")
 openai.api_key = os.getenv("OPENAI_API_KEY")
 MOTD = "Second Shift Augie! Reporting for Duty!"
 
+
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user}')
@@ -35,6 +37,7 @@ async def on_ready():
     await bot.change_presence(status=discord.Status.online, activity=game)
     channel = bot.get_channel(int(CHANNEL_ID))
     await channel.send(MOTD)
+
 
 @bot.event
 async def on_guild_join(guild):
@@ -49,8 +52,19 @@ async def on_ready():
         print(f"I'm active in {guild.id} a.k.a {guild}!")
 
 
+@bot.slash_command(name="connect_nodes")
+@guild_only()
+async def connect_nodes(ctx):
+    node: wavelink.Node = wavelink.Node(uri='http://ash.lavalink.alexanderof.xyz:2333', password='lavalink',
+                                        secure=False)
+    await wavelink.NodePool.connect(client=bot, nodes=[node])
+    await bot.wait_until_ready()  # wait until the bot is ready
+    await ctx.respond("Connected to lavalink node.")
+
+
 async def shutdown(bot):
     await bot.close()
+
 
 async def process_ssa_message(interaction, message):
     # Acknowledge the interaction if it exists
@@ -109,7 +123,6 @@ async def process_ssa_message(interaction, message):
         await interaction.followup.send(f"I couldn't find an appropriate response for {message}.")
 
 
-
 @bot.event
 async def on_message(message):
     # If the bot is mentioned and the message isn't from the bot itself
@@ -128,8 +141,45 @@ async def on_message(message):
 
     await bot.process_commands(message)  # Ensure other commands are still processed
 
+
+@bot.slash_command(name="ping", description="Sends the bot's latency.")  # this decorator makes a slash command
+async def ping(ctx):  # a slash command will be created with the name "ping"
+    await ctx.respond(f"Pong! Latency is {bot.latency}")
+
+
+@bot.event
+async def on_wavelink_node_ready(node: wavelink.Node) -> None:
+    print(f"Node {node.id} is ready!")
+
+
+@bot.slash_command(name="play")
+async def play(ctx, search: str):
+    if not wavelink.NodePool:
+        print("Connecting...")
+        await connect_nodes(ctx)
+
+    if not ctx.voice_client:
+        vc: wavelink.Player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
+    else:
+        vc: wavelink.Player = ctx.voice_client
+
+    if ctx.author.voice.channel.id != vc.channel.id:
+        return await ctx.respond("You must be in the same voice channel as the bot.")
+
+    tracks = await wavelink.YouTubeTrack.search(search)
+    if not tracks:
+        await ctx.send(f'No tracks found with query: `{search}`')
+        return
+
+    track = tracks[0]
+    await vc.play(track)
+
+
 if __name__ == '__main__':
     bot.load_extension("cogs.ssa")
+    print("Connecting Wavelink Node")
+
+    print("Done with Wavelink")
 
     try:
         bot.run(os.getenv("BOT_TOKEN"))
