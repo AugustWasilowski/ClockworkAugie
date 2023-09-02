@@ -47,6 +47,9 @@ async def on_guild_join(guild):
 @bot.event
 async def on_ready():
     bot.logger.info(f'Logged in as {bot.user.name} ({bot.user.id})')
+    node: wavelink.Node = wavelink.Node(uri='http://ash.lavalink.alexanderof.xyz:2333', password='lavalink',
+                                        secure=False)
+    await wavelink.NodePool.connect(client=bot, nodes=[node])
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name='user commands'))
     for guild in bot.guilds:
         print(f"I'm active in {guild.id} a.k.a {guild}!")
@@ -154,10 +157,6 @@ async def on_wavelink_node_ready(node: wavelink.Node) -> None:
 
 @bot.slash_command(name="play")
 async def play(ctx, search: str):
-    if not wavelink.NodePool:
-        print("Connecting...")
-        await connect_nodes(ctx)
-
     if not ctx.voice_client:
         vc: wavelink.Player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
     else:
@@ -173,7 +172,8 @@ async def play(ctx, search: str):
 
     track = tracks[0]
     await vc.play(track)
-    ctx.respond(f"Playing {tracks[0].title} by {tracks[0].author}")
+    await ctx.respond(f"Playing {tracks[0].title} by {tracks[0].author}")
+
 
 
 if __name__ == '__main__':
