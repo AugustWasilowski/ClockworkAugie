@@ -25,7 +25,27 @@ class spotify(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @discord.slash_command(name="track", description="Fetches track details from Spotify", guild_ids=[int(guild_id) for guild_id in os.getenv("GUILD_ID").split(",")])
+    @discord.slash_command(name="playlist", description="Fetches playlist details from Spotify")
+    async def _playlist(self, ctx: discord.Interaction, playlist_id: str):
+        token = get_spotify_token()
+        headers = {
+            "Authorization": f"Bearer {token}"
+        }
+        playlist_url = f"https://api.spotify.com/v1/playlists/{playlist_id}"
+        playlist_response = requests.get(playlist_url, headers=headers)
+
+        if playlist_response.status_code == 200:
+            playlist_data = playlist_response.json()
+            playlist_name = playlist_data["name"]
+            playlist_description = playlist_data["description"]
+            playlist_link = playlist_data["external_urls"]["spotify"]
+
+            await ctx.send(content=f"**{playlist_name}**\n{playlist_description}\nListen here: {playlist_link}")
+        else:
+            await ctx.send(content=f"Failed to fetch playlist. Error: {playlist_response.status_code}")
+
+    @discord.slash_command(name="track", description="Fetches track details from Spotify",
+                           guild_ids=[int(guild_id) for guild_id in os.getenv("GUILD_ID").split(",")])
     async def _track(self, ctx: discord.Interaction, track_name: str):
         token = get_spotify_token()
         headers = {
