@@ -25,7 +25,8 @@ class spotify(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @discord.slash_command(name="playlist", description="Fetches playlist details from Spotify")
+    @discord.slash_command(name="playlist", description="Fetches playlist details from Spotify",
+                           guild_ids=[int(guild_id) for guild_id in os.getenv("GUILD_ID").split(",")])
     async def _playlist(self, ctx: discord.Interaction, playlist_id: str):
         token = get_spotify_token()
         headers = {
