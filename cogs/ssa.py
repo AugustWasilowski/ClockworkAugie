@@ -1,11 +1,5 @@
 import os
 import io
-
-import nextcord as discord
-from nextcord.ext import commands
-from nextcord import Interaction
-
-
 from discord.ext import commands
 from cogs.DatabaseCog import DatabaseCog
 
