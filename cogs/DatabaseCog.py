@@ -1,5 +1,6 @@
 import sqlite3
 
+
 class DatabaseCog:
     def __init__(self):
         # SQLite Database Initialization
@@ -56,7 +57,6 @@ class DatabaseCog:
         self.cursor.execute(create_track_queue_table_query)
         self.conn.commit()
 
-
     def fetch_recent_messages(self, channel_id, limit=20):
         self.cursor.execute(
             "SELECT message, user_id FROM chat_history WHERE channel_id = ? ORDER BY timestamp DESC LIMIT ?",
@@ -87,6 +87,14 @@ class DatabaseCog:
             """, (channel_id, title, author, link, queued_by))
         self.conn.commit()
         return self.cursor.lastrowid  # Return the ID of the inserted track
+
+    def add_tracks_to_queue(self, channel_id, tracks, queued_by):
+        """Add multiple tracks to the track_queue."""
+        self.cursor.executemany("""
+            INSERT INTO track_queue (channel_id, title, author, link, queued_by)
+            VALUES (?, ?, ?, ?, ?);
+            """, [(channel_id, title, author, link, queued_by) for title, author, link in tracks])
+        self.conn.commit()
 
     def fetch_next_track(self, channel_id):
         """Fetch the next track to be played."""
@@ -136,6 +144,7 @@ class DatabaseCog:
         print(f"Reset the playing status for all tracks in channel {channel_id}")
         self.cursor.execute("UPDATE track_queue SET playing = FALSE WHERE channel_id = ?", (channel_id,))
         self.conn.commit()
+
 
     def close(self):
         self.conn.close()

@@ -12,6 +12,7 @@ from discord import guild_only
 import json
 import wavelink
 from wavelink import TrackEventPayload
+from pytube import Playlist
 from cogs.DatabaseCog import DatabaseCog
 from cogs.mockinteraction import MockInteraction
 
@@ -119,6 +120,11 @@ async def process_ssa_message(interaction, message):
             await interaction.followup.send(f"{content}")
     else:
         await interaction.followup.send(f"I couldn't find an appropriate response for {message}.")
+
+
+def get_tracks_from_playlist(url):
+    playlist = Playlist(url)
+    return [(video.title, video.author, video.watch_url) for video in playlist.videos]
 
 
 @bot.event
@@ -261,6 +267,20 @@ async def play(ctx, search: str):
                 await ctx.respond(f"Playing {title} by {author}")
     else:
         await ctx.respond(f"Added {track.title} by {track.author} to the queue.")
+
+
+@bot.slash_command(name="play_playlist")
+async def play_playlist(ctx, playlist_url: str):
+    # Immediate feedback to the user
+    await ctx.defer()  # This sends a "Bot is thinking..." type message, buying you more time
+
+    # Process the playlist
+    tracks = get_tracks_from_playlist(playlist_url)
+    db_cog.add_tracks_to_queue(ctx.channel.id, tracks, ctx.author.id)
+
+    # Send a follow-up message with the results
+    await ctx.send(f"Added {len(tracks)} songs to the queue from the playlist.")
+
 
 
 if __name__ == '__main__':
