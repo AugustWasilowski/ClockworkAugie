@@ -142,9 +142,11 @@ async def on_message(message):
     await bot.process_commands(message)  # Ensure other commands are still processed
 
 
-@bot.slash_command(name="ping", description="Sends the bot's latency.")  # this decorator makes a slash command
-async def ping(ctx):  # a slash command will be created with the name "ping"
-    await ctx.respond(f"Pong! Latency is {bot.latency}")
+@bot.slash_command(name="ping", description="Sends the bot's latency.")
+async def ping(ctx):
+    latency_ms = round(bot.latency * 1000)  # Convert latency to milliseconds
+    await ctx.respond(f"Pong! Latency is {latency_ms}ms")
+
 
 
 @bot.event
@@ -157,11 +159,10 @@ async def on_wavelink_track_end(payload: TrackEventPayload) -> None:
     print(f"Done playing {payload.original.title} because {payload.reason}")
     guild_id = payload.player.guild.id
 
-    next_track = db_cog.fetch_next_track(ctx.author.voice.channel.id)
-    if next_track:
-        _, title, author, link = next_track
+    if guild_id not in current_tracks:
+        current_tracks[guild_id] = []
+    track_id = current_tracks[guild_id].pop(0) if current_tracks[guild_id] else None
 
-    track_id = current_tracks.get(guild_id, [None]).pop(0)
     if track_id:
         db_cog.remove_played_track(track_id)
 
@@ -170,17 +171,15 @@ async def on_wavelink_track_end(payload: TrackEventPayload) -> None:
 
     vc: wavelink.Player = payload.player
 
-    track_id = current_tracks.get(guild_id)
-    if track_id:
-        db_cog.remove_played_track(track_id)
-
     next_track_info = db_cog.fetch_next_track(payload.player.channel.id)
     if next_track_info:
-        _, title, author, link = next_track_info
+        track_id, title, author, link = next_track_info  # Extract the track_id from the next_track_info
+        current_tracks[guild_id] = track_id  # Update the track_id in current_tracks dictionary
         next_track = await wavelink.YouTubeTrack.search(link)
         if next_track:
             print(f"Playing {title} by {author} next...")
             await vc.play(next_track[0])
+
 
 
 @bot.slash_command(name="showqueue")
@@ -211,18 +210,20 @@ async def nextsong(ctx):
     if ctx.author.voice.channel.id != vc.channel.id:
         return await ctx.respond("You must be in the same voice channel as the bot.")
 
-    next_track = db_cog.fetch_next_track(ctx.author.voice.channel.id)
-    if next_track:
-        _, title, author, link = next_track
+    next_track_info = db_cog.fetch_next_track(ctx.author.voice.channel.id)
+    if next_track_info:
+        track_id, title, author, link = next_track_info
         track = await wavelink.YouTubeTrack.search(link)
         if track[0]:
             await vc.play(track[0])
+            db_cog.remove_played_track(track_id)  # Remove the track being played from the queue
             print(f"Playing {title} by {author}")
             await ctx.respond(f"Playing {title} by {author}")
         else:
             await ctx.respond("Error playing track")
     else:
         await ctx.respond("End of queue. Use /play to add a song to the queue.")
+
 
 
 @bot.slash_command(name="play")
@@ -248,15 +249,16 @@ async def play(ctx, search: str):
 
     # If nothing is currently playing, play the next track in the queue
     if not vc.is_playing():
-        next_track = db_cog.fetch_next_track(ctx.author.voice.channel.id)
-        if next_track:
-            _, title, author, link = next_track
+        next_track_info = db_cog.fetch_next_track(ctx.channel.id)
+        if next_track_info:
+            track_id, title, author, link = next_track_info
+            if guild_id not in current_tracks:
+                current_tracks[guild_id] = []
+            current_tracks[guild_id].append(track_id)
             track = await wavelink.YouTubeTrack.search(link)
             if track[0]:
                 await vc.play(track[0])
                 await ctx.respond(f"Playing {title} by {author}")
-            else:
-                await ctx.respond("Error playing track")
     else:
         await ctx.respond(f"Added {track.title} by {track.author} to the queue.")
 
