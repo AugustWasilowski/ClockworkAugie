@@ -156,13 +156,11 @@ async def on_wavelink_node_ready(node: wavelink.Node) -> None:
 
 @bot.event
 async def on_wavelink_track_end(payload: TrackEventPayload) -> None:
-    guild_id = payload.player.guild
+    print(f"Done playing {payload.original.title} because {payload.reason}")
+    guild_id = payload.player.guild.id
 
-    # Ensure the guild_id is associated with a list
-    if guild_id not in current_tracks or not isinstance(current_tracks[guild_id], list):
+    if guild_id not in current_tracks:
         current_tracks[guild_id] = []
-
-    # Pop the first track ID from the list if it's not empty
     track_id = current_tracks[guild_id].pop(0) if current_tracks[guild_id] else None
 
     if track_id:
@@ -227,10 +225,10 @@ async def nextsong(ctx):
         await ctx.respond("End of queue. Use /play to add a song to the queue.")
 
 
-
 @bot.slash_command(name="play")
 async def play(ctx, search: str):
     guild_id = ctx.guild.id
+
     if guild_id not in players:
         vc: wavelink.Player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
         players[guild_id] = vc  # Store the player instance in the dictionary
@@ -247,16 +245,17 @@ async def play(ctx, search: str):
 
     track = tracks[0]
     track_id = db_cog.add_to_queue(ctx.channel.id, track.title, track.author, track.uri, ctx.author.id)
-    current_tracks.setdefault(guild_id, []).append(track_id)
+
+    # Ensure the guild_id is associated with a list and append the track_id
+    if guild_id not in current_tracks or not isinstance(current_tracks[guild_id], list):
+        current_tracks[guild_id] = []
+    current_tracks[guild_id].append(track_id)
 
     # If nothing is currently playing, play the next track in the queue
     if not vc.is_playing():
         next_track_info = db_cog.fetch_next_track(ctx.channel.id)
         if next_track_info:
-            track_id, title, author, link = next_track_info
-            if guild_id not in current_tracks:
-                current_tracks[guild_id] = []
-            current_tracks[guild_id].append(track_id)
+            _, title, author, link = next_track_info
             track = await wavelink.YouTubeTrack.search(link)
             if track[0]:
                 await vc.play(track[0])
