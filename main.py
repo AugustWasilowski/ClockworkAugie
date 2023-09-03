@@ -234,7 +234,7 @@ async def nextsong(ctx):
                 await ctx.respond("Error playing track")
         except WavelinkException as e:
             print(f"Wavelink error trying to play next track: {e}")
-            await ctx.respond(f"Wavelink Error: {e}")
+            await ctx.respond(f"error with {title} by {author}: {e}")
         except Exception as e:
             await ctx.respond(f"Error: {e}")
 
