@@ -156,30 +156,27 @@ async def on_wavelink_node_ready(node: wavelink.Node) -> None:
 
 @bot.event
 async def on_wavelink_track_end(payload: TrackEventPayload) -> None:
-    print(f"Done playing {payload.original.title} because {payload.reason}")
     guild_id = payload.player.guild.id
+    vc: wavelink.Player = payload.player
 
-    if guild_id not in current_tracks:
-        current_tracks[guild_id] = []
-    track_id = current_tracks[guild_id].pop(0) if current_tracks[guild_id] else None
+    if guild_id in current_tracks:
+        if isinstance(current_tracks[guild_id], list):
+            track_id = current_tracks[guild_id].pop(0)
+        else:
+            print(f"Error: current_tracks[{guild_id}] is not a list. It's value is: {current_tracks[guild_id]}")
+            track_id = None
+    else:
+        track_id = None
 
     if track_id:
         db_cog.remove_played_track(track_id)
 
-    if not current_tracks.get(guild_id):
-        del current_tracks[guild_id]
-
-    vc: wavelink.Player = payload.player
-
-    next_track_info = db_cog.fetch_next_track(payload.player.channel.id)
+    next_track_info = db_cog.fetch_next_track(vc.channel_id)
     if next_track_info:
-        track_id, title, author, link = next_track_info  # Extract the track_id from the next_track_info
-        current_tracks[guild_id] = track_id  # Update the track_id in current_tracks dictionary
+        _, title, author, link = next_track_info
         next_track = await wavelink.YouTubeTrack.search(link)
         if next_track:
-            print(f"Playing {title} by {author} next...")
             await vc.play(next_track[0])
-
 
 
 @bot.slash_command(name="showqueue")
