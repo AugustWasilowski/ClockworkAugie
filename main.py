@@ -29,9 +29,7 @@ CHANNEL_ID = os.getenv("CHANNEL_ID")  # Channel ID where SSA will log to.
 VOICE_CHANNEL_ID = os.getenv("VOICE_CHANNEL_ID")
 openai.api_key = os.getenv("OPENAI_API_KEY")
 MOTD = "Second Shift Augie! Reporting for Duty!"
-players = {}
-current_tracks = {}  # Dictionary to store track_id for each guild
-
+players = {}  # Dictionary to store track_id for each guild
 
 
 @bot.event
@@ -42,7 +40,7 @@ async def on_guild_join(guild):
 @bot.event
 async def on_ready():
     channel = bot.get_channel(int(CHANNEL_ID))
-    await channel.send(MOTD)
+    # await channel.send(MOTD)
     bot.logger.info(f'Logged in as {bot.user.name} ({bot.user.id})')
     node: wavelink.Node = wavelink.Node(uri='http://ash.lavalink.alexanderof.xyz:2333', password='lavalink',
                                         secure=False)
@@ -148,7 +146,6 @@ async def ping(ctx):
     await ctx.respond(f"Pong! Latency is {latency_ms}ms")
 
 
-
 @bot.event
 async def on_wavelink_node_ready(node: wavelink.Node) -> None:
     print(f"Node {node.id} is ready!")
@@ -156,27 +153,24 @@ async def on_wavelink_node_ready(node: wavelink.Node) -> None:
 
 @bot.event
 async def on_wavelink_track_end(payload: TrackEventPayload) -> None:
-    guild_id = payload.player.guild.id
+    print(f"Done playing {payload.original.title} because {payload.reason}")
+
     vc: wavelink.Player = payload.player
 
-    if guild_id in current_tracks:
-        if isinstance(current_tracks[guild_id], list):
-            track_id = current_tracks[guild_id].pop(0)
-        else:
-            print(f"Error: current_tracks[{guild_id}] is not a list. It's value is: {current_tracks[guild_id]}")
-            track_id = None
-    else:
-        track_id = None
+    # Only try to play the next song if the reason is FINISHED
+    if payload.reason != "REPLACED":
+        currently_playing = db_cog.get_currently_playing(payload.player.channel.id)
+        if currently_playing:
+            playing_track_id, _, _, _ = currently_playing
+            db_cog.remove_played_track(playing_track_id)
 
-    if track_id:
-        db_cog.remove_played_track(track_id)
-
-    next_track_info = db_cog.fetch_next_track(vc.channel.id)
-    if next_track_info:
-        _, title, author, link = next_track_info
-        next_track = await wavelink.YouTubeTrack.search(link)
-        if next_track:
-            await vc.play(next_track[0])
+        next_track_info = db_cog.fetch_next_track(payload.player.channel.id)
+        if next_track_info:
+            track_id, title, author, link = next_track_info
+            db_cog.set_track_playing(track_id)
+            next_track = await wavelink.YouTubeTrack.search(link)
+            if next_track:
+                await vc.play(next_track[0])
 
 
 @bot.slash_command(name="showqueue")
@@ -194,6 +188,16 @@ async def showqueue(ctx):
     await ctx.respond(message)
 
 
+@bot.slash_command(name="currentlyplaying")
+async def currentlyplaying(ctx):
+    currently_playing = db_cog.get_currently_playing(ctx.channel.id)
+    if currently_playing:
+        _, title, author, link = currently_playing
+        await ctx.respond(f"Currently playing: {title} by {author}. [Link]({link})")
+    else:
+        await ctx.respond("No song is currently playing.")
+
+
 @bot.slash_command(name="nextsong")
 async def nextsong(ctx):
     guild_id = ctx.guild.id
@@ -207,13 +211,14 @@ async def nextsong(ctx):
     if ctx.author.voice.channel.id != vc.channel.id:
         return await ctx.respond("You must be in the same voice channel as the bot.")
 
+    currently_playing = db_cog.get_currently_playing(vc.channel.id)
     next_track_info = db_cog.fetch_next_track(ctx.author.voice.channel.id)
     if next_track_info:
         track_id, title, author, link = next_track_info
         track = await wavelink.YouTubeTrack.search(link)
         if track[0]:
             await vc.play(track[0])
-            db_cog.remove_played_track(track_id)  # Remove the track being played from the queue
+            db_cog.set_track_playing(track_id)
             print(f"Playing {title} by {author}")
             await ctx.respond(f"Playing {title} by {author}")
         else:
@@ -221,11 +226,13 @@ async def nextsong(ctx):
     else:
         await ctx.respond("End of queue. Use /play to add a song to the queue.")
 
+    if currently_playing:
+        playing_track_id, _, _, _ = currently_playing
+        db_cog.remove_played_track(playing_track_id)
 
 @bot.slash_command(name="play")
 async def play(ctx, search: str):
     guild_id = ctx.guild.id
-
     if guild_id not in players:
         vc: wavelink.Player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
         players[guild_id] = vc  # Store the player instance in the dictionary
@@ -243,16 +250,11 @@ async def play(ctx, search: str):
     track = tracks[0]
     track_id = db_cog.add_to_queue(ctx.channel.id, track.title, track.author, track.uri, ctx.author.id)
 
-    # Ensure the guild_id is associated with a list and append the track_id
-    if guild_id not in current_tracks or not isinstance(current_tracks[guild_id], list):
-        current_tracks[guild_id] = []
-    current_tracks[guild_id].append(track_id)
-
-    # If nothing is currently playing, play the next track in the queue
     if not vc.is_playing():
         next_track_info = db_cog.fetch_next_track(ctx.channel.id)
         if next_track_info:
-            _, title, author, link = next_track_info
+            track_id, title, author, link = next_track_info
+            db_cog.set_track_playing(track_id)
             track = await wavelink.YouTubeTrack.search(link)
             if track[0]:
                 await vc.play(track[0])

@@ -43,12 +43,13 @@ class DatabaseCog:
 
         create_track_queue_table_query = """
                 CREATE TABLE IF NOT EXISTS track_queue (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id INTEGER PRIMARY KEY,
                     channel_id TEXT NOT NULL,
                     title TEXT NOT NULL,
                     author TEXT NOT NULL,
                     link TEXT NOT NULL,
                     queued_by TEXT NOT NULL,
+                    playing BOOLEAN DEFAULT FALSE,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
                 """
@@ -79,24 +80,24 @@ class DatabaseCog:
         self.conn.commit()
 
     def add_to_queue(self, channel_id, title, author, link, queued_by):
-        """Add a track to the track_queue and return its ID."""
-        self.cursor.execute(
-            'INSERT INTO track_queue (channel_id, title, author, link, queued_by) VALUES (?, ?, ?, ?, ?);',
-            (channel_id, title, author, link, queued_by)
-        )
+        print(f"Add {title} to the track_queue.")
+        self.cursor.execute("""
+            INSERT INTO track_queue (channel_id, title, author, link, queued_by, playing)
+            VALUES (?, ?, ?, ?, ?, FALSE);
+            """, (channel_id, title, author, link, queued_by))
         self.conn.commit()
-        return self.cursor.lastrowid
+        return self.cursor.lastrowid  # Return the ID of the inserted track
 
     def fetch_next_track(self, channel_id):
         """Fetch the next track to be played."""
         self.cursor.execute("""
             SELECT id, title, author, link FROM track_queue
-            WHERE channel_id = ? ORDER BY timestamp ASC LIMIT 1;
+            WHERE channel_id = ? AND playing = 0 ORDER BY timestamp ASC LIMIT 1;
             """, (channel_id,))
         return self.cursor.fetchone()
 
     def remove_played_track(self, track_id):
-        """Remove a track from the queue after it's played."""
+        print(f"Remove track {track_id} from the queue after it's played.")
         self.cursor.execute("DELETE FROM track_queue WHERE id = ?", (int(track_id),))
         self.conn.commit()
 
@@ -107,6 +108,34 @@ class DatabaseCog:
             WHERE channel_id = ? ORDER BY timestamp ASC;
             """, (channel_id,))
         return self.cursor.fetchall()
+
+    def fetch_track_by_id(self, track_id):
+        self.cursor.execute("""
+            SELECT title, author, link FROM track_queue
+            WHERE id = ? ORDER BY timestamp ASC LIMIT 1;
+        """, (track_id,))
+        return self.cursor.fetchone()
+
+    def set_track_playing(self, track_id):
+        print(f"Set track {track_id} as currently playing.")
+        self.cursor.execute("UPDATE track_queue SET playing = TRUE WHERE id = ?", (track_id,))
+        self.conn.commit()
+
+    def reset_track_playing(self, track_id):
+        print(f"Reset the playing status of track {track_id}")
+        self.cursor.execute("UPDATE track_queue SET playing = FALSE WHERE id = ?", (track_id,))
+        self.conn.commit()
+
+    def get_currently_playing(self, channel_id):
+        print(f"Retrieve the currently playing track for channel {channel_id}")
+        self.cursor.execute("SELECT id, title, author, link FROM track_queue WHERE channel_id = ? AND playing = TRUE",
+                            (channel_id,))
+        return self.cursor.fetchone()
+
+    def reset_all_playing(self, channel_id):
+        print(f"Reset the playing status for all tracks in channel {channel_id}")
+        self.cursor.execute("UPDATE track_queue SET playing = FALSE WHERE channel_id = ?", (channel_id,))
+        self.conn.commit()
 
     def close(self):
         self.conn.close()
