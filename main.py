@@ -11,6 +11,7 @@ from discord.ext import commands
 from discord import guild_only
 import json
 import wavelink
+from wavelink import TrackEventPayload
 from cogs.DatabaseCog import DatabaseCog
 from cogs.mockinteraction import MockInteraction
 
@@ -28,24 +29,20 @@ CHANNEL_ID = os.getenv("CHANNEL_ID")  # Channel ID where SSA will log to.
 VOICE_CHANNEL_ID = os.getenv("VOICE_CHANNEL_ID")
 openai.api_key = os.getenv("OPENAI_API_KEY")
 MOTD = "Second Shift Augie! Reporting for Duty!"
+players = {}
+current_tracks = {}  # Dictionary to store track_id for each guild
 
-
-@bot.event
-async def on_ready():
-    print(f'We have logged in as {bot.user}')
-    game = discord.Game("Use /ssa or /gpt4ci to interact.")
-    await bot.change_presence(status=discord.Status.online, activity=game)
-    channel = bot.get_channel(int(CHANNEL_ID))
-    await channel.send(MOTD)
 
 
 @bot.event
 async def on_guild_join(guild):
-    print(f'Wow, I joined {guild.name}!')
+    print(f'Second Shift Augie joined {guild.name}!')
 
 
 @bot.event
 async def on_ready():
+    channel = bot.get_channel(int(CHANNEL_ID))
+    await channel.send(MOTD)
     bot.logger.info(f'Logged in as {bot.user.name} ({bot.user.id})')
     node: wavelink.Node = wavelink.Node(uri='http://ash.lavalink.alexanderof.xyz:2333', password='lavalink',
                                         secure=False)
@@ -155,12 +152,87 @@ async def on_wavelink_node_ready(node: wavelink.Node) -> None:
     print(f"Node {node.id} is ready!")
 
 
+@bot.event
+async def on_wavelink_track_end(payload: TrackEventPayload) -> None:
+    print(f"Done playing {payload.original.title} because {payload.reason}")
+    guild_id = payload.player.guild.id
+
+    next_track = db_cog.fetch_next_track(ctx.author.voice.channel.id)
+    if next_track:
+        _, title, author, link = next_track
+
+    track_id = current_tracks.get(guild_id, [None]).pop(0)
+    if track_id:
+        db_cog.remove_played_track(track_id)
+
+    if not current_tracks.get(guild_id):
+        del current_tracks[guild_id]
+
+    vc: wavelink.Player = payload.player
+
+    track_id = current_tracks.get(guild_id)
+    if track_id:
+        db_cog.remove_played_track(track_id)
+
+    next_track_info = db_cog.fetch_next_track(payload.player.channel.id)
+    if next_track_info:
+        _, title, author, link = next_track_info
+        next_track = await wavelink.YouTubeTrack.search(link)
+        if next_track:
+            print(f"Playing {title} by {author} next...")
+            await vc.play(next_track[0])
+
+
+@bot.slash_command(name="showqueue")
+async def showqueue(ctx):
+    queue = db_cog.fetch_all_tracks(ctx.channel.id)
+    if not queue:
+        return await ctx.respond("The queue is currently empty.")
+
+    tracks_list = []
+    for idx, (_, title, author, _) in enumerate(queue, 1):
+        tracks_list.append(f"{idx}. {title} by {author}")
+
+    message = "\n".join(tracks_list)
+
+    await ctx.respond(message)
+
+
+@bot.slash_command(name="nextsong")
+async def nextsong(ctx):
+    guild_id = ctx.guild.id
+
+    if guild_id not in players:
+        vc: wavelink.Player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
+        players[guild_id] = vc  # Store the player instance in the dictionary
+    else:
+        vc = players[guild_id]
+
+    if ctx.author.voice.channel.id != vc.channel.id:
+        return await ctx.respond("You must be in the same voice channel as the bot.")
+
+    next_track = db_cog.fetch_next_track(ctx.author.voice.channel.id)
+    if next_track:
+        _, title, author, link = next_track
+        track = await wavelink.YouTubeTrack.search(link)
+        if track[0]:
+            await vc.play(track[0])
+            print(f"Playing {title} by {author}")
+            await ctx.respond(f"Playing {title} by {author}")
+        else:
+            await ctx.respond("Error playing track")
+    else:
+        await ctx.respond("End of queue. Use /play to add a song to the queue.")
+
+
 @bot.slash_command(name="play")
 async def play(ctx, search: str):
-    if not ctx.voice_client:
+    guild_id = ctx.guild.id
+    if guild_id not in players:
         vc: wavelink.Player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
+        players[guild_id] = vc  # Store the player instance in the dictionary
     else:
-        vc: wavelink.Player = ctx.voice_client
+        vc = players[guild_id]
 
     if ctx.author.voice.channel.id != vc.channel.id:
         return await ctx.respond("You must be in the same voice channel as the bot.")
@@ -171,16 +243,26 @@ async def play(ctx, search: str):
         return
 
     track = tracks[0]
-    await vc.play(track)
-    await ctx.respond(f"Playing {tracks[0].title} by {tracks[0].author}")
+    track_id = db_cog.add_to_queue(ctx.channel.id, track.title, track.author, track.uri, ctx.author.id)
+    current_tracks.setdefault(guild_id, []).append(track_id)
 
+    # If nothing is currently playing, play the next track in the queue
+    if not vc.is_playing():
+        next_track = db_cog.fetch_next_track(ctx.author.voice.channel.id)
+        if next_track:
+            _, title, author, link = next_track
+            track = await wavelink.YouTubeTrack.search(link)
+            if track[0]:
+                await vc.play(track[0])
+                await ctx.respond(f"Playing {title} by {author}")
+            else:
+                await ctx.respond("Error playing track")
+    else:
+        await ctx.respond(f"Added {track.title} by {track.author} to the queue.")
 
 
 if __name__ == '__main__':
     bot.load_extension("cogs.ssa")
-    print("Connecting Wavelink Node")
-
-    print("Done with Wavelink")
 
     try:
         bot.run(os.getenv("BOT_TOKEN"))
