@@ -156,11 +156,13 @@ async def on_wavelink_node_ready(node: wavelink.Node) -> None:
 
 @bot.event
 async def on_wavelink_track_end(payload: TrackEventPayload) -> None:
-    print(f"Done playing {payload.original.title} because {payload.reason}")
-    guild_id = payload.player.guild.id
+    guild_id = payload.player.guild
 
-    if guild_id not in current_tracks:
+    # Ensure the guild_id is associated with a list
+    if guild_id not in current_tracks or not isinstance(current_tracks[guild_id], list):
         current_tracks[guild_id] = []
+
+    # Pop the first track ID from the list if it's not empty
     track_id = current_tracks[guild_id].pop(0) if current_tracks[guild_id] else None
 
     if track_id:
