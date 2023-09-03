@@ -14,7 +14,7 @@ class DatabaseCog:
             channel_id TEXT NOT NULL,
             user_id TEXT NOT NULL,
             message TEXT NOT NULL,
-            mp3path TEXT NOT NULL,
+            mp3path TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         );
         """
