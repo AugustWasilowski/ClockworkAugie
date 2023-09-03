@@ -171,7 +171,7 @@ async def on_wavelink_track_end(payload: TrackEventPayload) -> None:
     if track_id:
         db_cog.remove_played_track(track_id)
 
-    next_track_info = db_cog.fetch_next_track(vc.channel_id)
+    next_track_info = db_cog.fetch_next_track(vc.channel.id)
     if next_track_info:
         _, title, author, link = next_track_info
         next_track = await wavelink.YouTubeTrack.search(link)
