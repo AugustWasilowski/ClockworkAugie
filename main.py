@@ -221,6 +221,7 @@ async def nextsong(ctx):
     next_track_info = db_cog.fetch_next_track(ctx.author.voice.channel.id)
     if next_track_info:
         track_id, title, author, link = next_track_info
+        print(f"link: {link}")
         track = await wavelink.YouTubeTrack.search(link)
         if track[0]:
             await vc.play(track[0])
