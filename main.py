@@ -12,6 +12,7 @@ from discord import guild_only
 import json
 import wavelink
 from wavelink import TrackEventPayload
+from wavelink import WavelinkException
 from pytube import Playlist
 from cogs.DatabaseCog import DatabaseCog
 from cogs.mockinteraction import MockInteraction
@@ -222,14 +223,21 @@ async def nextsong(ctx):
     if next_track_info:
         track_id, title, author, link = next_track_info
         print(f"link: {link}")
-        track = await wavelink.YouTubeTrack.search(link)
-        if track[0]:
-            await vc.play(track[0])
-            db_cog.set_track_playing(track_id)
-            print(f"Playing {title} by {author}")
-            await ctx.respond(f"Playing {title} by {author}")
-        else:
-            await ctx.respond("Error playing track")
+        try:
+            track = await wavelink.YouTubeTrack.search(link)
+            if track[0]:
+                await vc.play(track[0])
+                db_cog.set_track_playing(track_id)
+                print(f"Playing {title} by {author}")
+                await ctx.respond(f"Playing {title} by {author}")
+            else:
+                await ctx.respond("Error playing track")
+        except WavelinkException as e:
+            print(f"Wavelink error trying to play next track: {e}")
+            await ctx.respond(f"Wavelink Error: {e}")
+        except Exception as e:
+            await ctx.respond(f"Error: {e}")
+
     else:
         await ctx.respond("End of queue. Use /play to add a song to the queue.")
 
