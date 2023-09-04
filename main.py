@@ -448,7 +448,7 @@ async def query_chat_gpt_bottom_tracks(artist: str, num_tracks: int) -> str:
 
 @bot.slash_command(name="help", description="Get a list of available commands and their descriptions.")
 async def help_command(ctx):
-    embed = discord.Embed(title="ClockworkAugie Commands", description="Here's a list of available commands:", color=discord.Color.blue())
+    embed = discord.Embed(title="Second Shift Augie Commands", description="Here's a list of available commands:", color=discord.Color.blue())
 
     # Add commands and their descriptions to the embed
     embed.add_field(name="/play <URL/track name>", value="Play a specific track or YouTube link.", inline=False)
