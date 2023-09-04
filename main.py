@@ -203,8 +203,8 @@ async def currentlyplaying(ctx):
         await ctx.respond("No song is currently playing.")
 
 
-@bot.slash_command(name="nextsong", description="Plays the next song in the queue")
-async def nextsong(ctx):
+@bot.slash_command(name="skip", description="Plays the next song in the queue")
+async def skip(ctx):
     guild_id = ctx.guild.id
 
     if guild_id not in players:
@@ -445,6 +445,27 @@ async def query_chat_gpt_bottom_tracks(artist: str, num_tracks: int) -> str:
 
     print(result)
     return result
+
+@bot.slash_command(name="help", description="Get a list of available commands and their descriptions.")
+async def help_command(ctx):
+    embed = discord.Embed(title="ClockworkAugie Commands", description="Here's a list of available commands:", color=discord.Color.blue())
+
+    # Add commands and their descriptions to the embed
+    embed.add_field(name="/play <URL/track name>", value="Play a specific track or YouTube link.", inline=False)
+    embed.add_field(name="/pause", value="Pauses playback.")
+    embed.add_field(name="/resume", value="Resumes playback.")
+    embed.add_field(name="/skip", value="Skip the current track.", inline=False)
+    embed.add_field(name="/showqueue", value="Display the current queue of tracks.", inline=False)
+    embed.add_field(name="/clear_queue", value="Clears the queue.")
+    embed.add_field(name="/currentlyplaying", value="Shows the currently playing track information.")
+    embed.add_field(name="/favorite", value="Save the currently playing track as a favorite to your own personal playlist.", inline=False)
+    embed.add_field(name="/playfavorites", value="Add tracks from your favorites to the queue.", inline=False)
+    embed.add_field(name="/toptracks <artist>,  <num_tracks=10>", value="Adds the top tracks of a specific artist and add them to the queue.", inline=False)
+    embed.add_field(name="/bottomtracks <artist>, <num_tracks=10>", value="Adds lesser known tracks of a specific artist to the queue.")
+    embed.add_field(name="/ping", value="Returns your ping in milliseconds to the bot.")
+    # ... add more commands as needed
+
+    await ctx.respond(embed=embed)
 
 if __name__ == '__main__':
     bot.load_extension("cogs.ssa")
