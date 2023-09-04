@@ -420,7 +420,7 @@ async def bottom_tracks(ctx, artist: str, num_tracks: int = 10):
             await ctx.edit(content=f"<@{ctx.author.id}> is adding {track.title} by {track.author} to the queue in "
                                    f"channel <#{ctx.channel.id}>")
 
-    await ctx.edit(content=f"Added top tracks of {artist} to the queue!")
+    await ctx.edit(content=f"Added lesser known tracks of {artist} to the queue!")
 
 
 async def query_chat_gpt(artist: str, num_tracks: int) -> str:
