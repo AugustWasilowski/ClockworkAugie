@@ -88,7 +88,8 @@ async def process_ssa_message(interaction, message):
     db_cog.insert_chat_history(str(interaction.channel_id), userid, message)
 
     recent_messages = db_cog.fetch_recent_messages(str(interaction.channel_id), 30)
-    messages = [{"role": "system", "content": json.dumps(db_cog.get_template("Second Shift Augie"))}]
+    messages = [{"role": "system", "content": json.dumps(
+        db_cog.get_template("Second Shift Augie"))}]  # hard coded Second Shift Augie template for Clockwork Augie
     messages.extend([{"role": "user", "content": msg} for msg in recent_messages])
     messages.append({"role": "user", "content": json.dumps(message)})
 
@@ -170,7 +171,7 @@ async def on_wavelink_track_end(payload: TrackEventPayload) -> None:
     if payload.reason != "REPLACED":
         currently_playing = db_cog.get_currently_playing(payload.player.channel.id)
         if currently_playing:
-            playing_track_id, _, _, _ = currently_playing
+            playing_track_id, _, _, _, _ = currently_playing
             db_cog.remove_played_track(playing_track_id)
 
         next_track_info = db_cog.fetch_next_track(payload.player.channel.id)
@@ -182,8 +183,10 @@ async def on_wavelink_track_end(payload: TrackEventPayload) -> None:
                 await vc.play(next_track[0])
 
 
-@bot.slash_command(name="showqueue")
+@bot.slash_command(name="showqueue", description="Shows the queue of songs")
 async def showqueue(ctx):
+    await ctx.defer()
+
     queue = db_cog.fetch_all_tracks(ctx.channel.id)
     if not queue:
         return await ctx.respond("The queue is currently empty.")
@@ -194,10 +197,18 @@ async def showqueue(ctx):
 
     message = "\n".join(tracks_list)
 
-    await ctx.respond(message)
+    if len(message) > 2000:
+        # Create a temporary file in memory
+        with io.BytesIO(message.encode()) as f:
+            # Send the content as a file
+            await ctx.respond(
+                content="The queue is too long to display here. Download the attached file to view the full queue.",
+                file=discord.File(f, filename="queue.txt"))
+    else:
+        await ctx.respond(content=message)
 
 
-@bot.slash_command(name="currentlyplaying")
+@bot.slash_command(name="currentlyplaying", description="Shows the currently playing song")
 async def currentlyplaying(ctx):
     currently_playing = db_cog.get_currently_playing(ctx.channel.id)
     if currently_playing:
@@ -207,7 +218,7 @@ async def currentlyplaying(ctx):
         await ctx.respond("No song is currently playing.")
 
 
-@bot.slash_command(name="nextsong")
+@bot.slash_command(name="nextsong", description="Plays the next song in the queue")
 async def nextsong(ctx):
     guild_id = ctx.guild.id
 
@@ -248,7 +259,7 @@ async def nextsong(ctx):
         db_cog.remove_played_track(playing_track_id)
 
 
-@bot.slash_command(name="play")
+@bot.slash_command(name="play", description="Searches YouTube for the song")
 async def play(ctx, search: str):
     guild_id = ctx.guild.id
     if guild_id not in players:
@@ -281,26 +292,21 @@ async def play(ctx, search: str):
         await ctx.respond(f"Added {track.title} by {track.author} to the queue.")
 
 
-@bot.slash_command(name="play_playlist")
+@bot.slash_command(name="play_playlist", description="Plays a YouTube Playlist")
 async def play_playlist(ctx, playlist_url: str):
-    # Immediate feedback to the user
-    await ctx.defer()  # This sends a "Bot is thinking..." type message, buying you more time
-
-    # Process the playlist
+    await ctx.defer()
     tracks = get_tracks_from_playlist(playlist_url)
     db_cog.add_tracks_to_queue(ctx.channel.id, tracks, ctx.author.id)
-
-    # Send a follow-up message with the results
     await ctx.send(f"Added {len(tracks)} songs to the queue from the playlist.")
 
 
-@bot.slash_command(name="clear_queue")
+@bot.slash_command(name="clear_queue", description="Clears the queue of any songs")
 async def clear_queue(ctx):
     db_cog.clear_queue_for_channel()
     await ctx.respond("Playlist cleared.")
 
 
-@bot.slash_command(name="pause")
+@bot.slash_command(name="pause", description="Pauses the song")
 async def pause(ctx):
     guild_id = ctx.guild.id
     if guild_id not in players:
@@ -315,7 +321,7 @@ async def pause(ctx):
         await ctx.respond("Music is already paused.")
 
 
-@bot.slash_command(name="resume")
+@bot.slash_command(name="resume", description="Resumes the song")
 async def resume(ctx):
     guild_id = ctx.guild.id
     if guild_id not in players:
@@ -330,7 +336,7 @@ async def resume(ctx):
         await ctx.respond("Music is not paused.")
 
 
-@bot.slash_command(name="favorite")
+@bot.slash_command(name="favorite", description="Adds currently playing song to your personal favorites playlist")
 async def favorite(ctx):
     guild_id = ctx.guild.id
 
@@ -354,7 +360,7 @@ async def favorite(ctx):
     await ctx.respond(f"Added {title} by {author} to your favorites.")
 
 
-@bot.slash_command(name="playfavorites")
+@bot.slash_command(name="playfavorites", description="Plays your personal favorites playlist")
 async def play_favorites(ctx):
     guild_id = ctx.guild.id
 
@@ -388,6 +394,41 @@ async def play_favorites(ctx):
 
     else:
         await ctx.respond(f"Added {len(favorites)} songs to the queue from your favorites.")
+
+
+@bot.slash_command(name="toptracks")
+async def top_tracks(ctx, artist: str, num_tracks: int = 10):
+    await ctx.defer()
+
+    toptracks = await query_chat_gpt(artist, num_tracks)
+
+    # Split the string by newline and filter out any empty strings
+    tracks_list = [track.split('. ')[1].strip('“”') for track in toptracks.strip().split('\n') if track]
+
+    for track_title in tracks_list:
+        search = f"{artist} {track_title}"
+        tracks = await wavelink.YouTubeTrack.search(search)
+
+        if tracks:
+            track = tracks[0]
+            db_cog.add_to_queue(ctx.channel.id, track.title, track.author, track.uri, ctx.author.id)
+            print(f"{ctx.author.id} is adding {track.title} by {track.author} to the queue in channel {ctx.channel.id}")
+            await ctx.edit(content=f"<@{ctx.author.id}> is adding {track.title} by {track.author} to the queue in "
+                                   f"channel <#{ctx.channel.id}>")
+
+    await ctx.edit(content=f"Added top tracks of {artist} to the queue!")
+
+
+async def query_chat_gpt(artist: str, num_tracks: int) -> str:
+    response = openai.Completion.create(
+        engine="text-davinci-003",
+        prompt=f"What are the top {num_tracks} critically acclaimed tracks by {artist}?",
+        max_tokens=150
+    )
+    result = response.choices[0].text.strip()
+
+    print(result)
+    return result
 
 
 if __name__ == '__main__':
