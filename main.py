@@ -401,6 +401,28 @@ async def top_tracks(ctx, artist: str, num_tracks: int = 10):
     await ctx.edit(content=f"Added top tracks of {artist} to the queue!")
 
 
+@bot.slash_command(name="bottomtracks", description="Will use ChatGPT to get the top N number of lesser known "
+                                                 "tracks by an artist")
+async def bottom_tracks(ctx, artist: str, num_tracks: int = 10):
+    await ctx.defer()
+
+    bottomtracks = await query_chat_gpt(artist, num_tracks)
+    tracks_list = [track.split('. ')[1].strip('“”') for track in bottomtracks.strip().split('\n') if track]
+
+    for track_title in tracks_list:
+        search = f"{artist} {track_title}"
+        tracks = await wavelink.YouTubeTrack.search(search)
+
+        if tracks:
+            track = tracks[0]
+            db_cog.add_to_queue(ctx.channel.id, track.title, track.author, track.uri, ctx.author.id)
+            print(f"{ctx.author.id} is adding {track.title} by {track.author} to the queue in channel {ctx.channel.id}")
+            await ctx.edit(content=f"<@{ctx.author.id}> is adding {track.title} by {track.author} to the queue in "
+                                   f"channel <#{ctx.channel.id}>")
+
+    await ctx.edit(content=f"Added top tracks of {artist} to the queue!")
+
+
 async def query_chat_gpt(artist: str, num_tracks: int) -> str:
     response = openai.Completion.create(
         engine="text-davinci-003",
@@ -412,6 +434,17 @@ async def query_chat_gpt(artist: str, num_tracks: int) -> str:
     print(result)
     return result
 
+
+async def query_chat_gpt_bottom_tracks(artist: str, num_tracks: int) -> str:
+    response = openai.Completion.create(
+        engine="text-davinci-003",
+        prompt=f"What are some of the lesser known songs by {artist}? Give me {num_tracks} tracks in a numbered list.",
+        max_tokens=2000
+    )
+    result = response.choices[0].text.strip()
+
+    print(result)
+    return result
 
 if __name__ == '__main__':
     bot.load_extension("cogs.ssa")
