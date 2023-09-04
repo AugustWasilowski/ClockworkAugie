@@ -308,6 +308,36 @@ async def clear_queue(ctx):
     await ctx.respond("Playlist cleared for this voice channel.")
 
 
+@bot.slash_command(name="pause")
+async def pause(ctx):
+    guild_id = ctx.guild.id
+    if guild_id not in players:
+        await ctx.respond("No music is currently playing in this server.")
+        return
+
+    vc = players[guild_id]
+    if not vc.is_paused():
+        await vc.pause()
+        await ctx.respond("Music paused.")
+    else:
+        await ctx.respond("Music is already paused.")
+
+
+@bot.slash_command(name="resume")
+async def resume(ctx):
+    guild_id = ctx.guild.id
+    if guild_id not in players:
+        await ctx.respond("No music is currently playing in this server.")
+        return
+
+    vc = players[guild_id]
+    if vc.is_paused():
+        await vc.resume()
+        await ctx.respond("Music resumed.")
+    else:
+        await ctx.respond("Music is not paused.")
+
+
 if __name__ == '__main__':
     bot.load_extension("cogs.ssa")
 
@@ -324,5 +354,3 @@ if __name__ == '__main__':
         asyncio.run(shutdown(bot))
     finally:
         sys.exit(0)
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
