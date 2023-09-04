@@ -452,17 +452,17 @@ async def help_command(ctx):
 
     # Add commands and their descriptions to the embed
     embed.add_field(name="/play <URL/track name>", value="Play a specific track or YouTube link.", inline=False)
-    embed.add_field(name="/pause", value="Pauses playback.")
-    embed.add_field(name="/resume", value="Resumes playback.")
+    embed.add_field(name="/pause", value="Pauses playback.", inline=False)
+    embed.add_field(name="/resume", value="Resumes playback.", inline=False)
     embed.add_field(name="/skip", value="Skip the current track.", inline=False)
     embed.add_field(name="/showqueue", value="Display the current queue of tracks.", inline=False)
-    embed.add_field(name="/clear_queue", value="Clears the queue.")
-    embed.add_field(name="/currentlyplaying", value="Shows the currently playing track information.")
+    embed.add_field(name="/clear_queue", value="Clears the queue.", inline=False)
+    embed.add_field(name="/currentlyplaying", value="Shows the currently playing track information.", inline=False)
     embed.add_field(name="/favorite", value="Save the currently playing track as a favorite to your own personal playlist.", inline=False)
     embed.add_field(name="/playfavorites", value="Add tracks from your favorites to the queue.", inline=False)
     embed.add_field(name="/toptracks <artist>,  <num_tracks=10>", value="Adds the top tracks of a specific artist and add them to the queue.", inline=False)
-    embed.add_field(name="/bottomtracks <artist>, <num_tracks=10>", value="Adds lesser known tracks of a specific artist to the queue.")
-    embed.add_field(name="/ping", value="Returns your ping in milliseconds to the bot.")
+    embed.add_field(name="/bottomtracks <artist>, <num_tracks=10>", value="Adds lesser known tracks of a specific artist to the queue.", inline=False)
+    embed.add_field(name="/ping", value="Returns your ping in milliseconds to the bot.", inline=False)
     # ... add more commands as needed
 
     await ctx.respond(embed=embed)
