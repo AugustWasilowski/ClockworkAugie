@@ -144,12 +144,12 @@ async def on_message(message):
             mock_interaction = MockInteraction(message)
             await process_ssa_message(mock_interaction, message.content.replace(f'<@!{bot.user.id}>', '').strip())
 
-    await bot.process_commands(message)  # Ensure other commands are still processed
+    await bot.process_commands(message)
 
 
 @bot.slash_command(name="ping", description="Sends the bot's latency.")
 async def ping(ctx):
-    latency_ms = round(bot.latency * 1000)  # Convert latency to milliseconds
+    latency_ms = round(bot.latency * 1000)
     await ctx.respond(f"Pong! Latency is {latency_ms}ms")
 
 
@@ -245,6 +245,7 @@ async def nextsong(ctx):
         playing_track_id, _, _, _ = currently_playing
         db_cog.remove_played_track(playing_track_id)
 
+
 @bot.slash_command(name="play")
 async def play(ctx, search: str):
     guild_id = ctx.guild.id
@@ -289,6 +290,7 @@ async def play_playlist(ctx, playlist_url: str):
 
     # Send a follow-up message with the results
     await ctx.send(f"Added {len(tracks)} songs to the queue from the playlist.")
+
 
 @bot.slash_command(name="clear_queue")
 async def clear_queue(ctx):
