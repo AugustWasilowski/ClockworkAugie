@@ -1,3 +1,5 @@
+import random
+
 from dotenv import load_dotenv
 import asyncio
 import os
@@ -199,7 +201,7 @@ async def showqueue(ctx):
 async def currentlyplaying(ctx):
     currently_playing = db_cog.get_currently_playing(ctx.channel.id)
     if currently_playing:
-        _, title, author, link = currently_playing
+        _, title, author, link, _ = currently_playing
         await ctx.respond(f"Currently playing: {title} by {author}. [Link]({link})")
     else:
         await ctx.respond("No song is currently playing.")
@@ -242,7 +244,7 @@ async def nextsong(ctx):
         await ctx.respond("End of queue. Use /play to add a song to the queue.")
 
     if currently_playing:
-        playing_track_id, _, _, _ = currently_playing
+        playing_track_id, _, _, _, _ = currently_playing
         db_cog.remove_played_track(playing_track_id)
 
 
@@ -294,18 +296,8 @@ async def play_playlist(ctx, playlist_url: str):
 
 @bot.slash_command(name="clear_queue")
 async def clear_queue(ctx):
-    # Get the voice channel ID from the author's current voice state
-    voice_channel_id = ctx.author.voice.channel.id
-
-    # Check if the user is in a voice channel
-    if not voice_channel_id:
-        await ctx.respond("You must be in a voice channel to clear the queue.")
-        return
-
-    # Clear the playlist in the database for this voice channel
-    db_cog.clear_queue_for_channel(voice_channel_id)
-
-    await ctx.respond("Playlist cleared for this voice channel.")
+    db_cog.clear_queue_for_channel()
+    await ctx.respond("Playlist cleared.")
 
 
 @bot.slash_command(name="pause")
@@ -336,6 +328,66 @@ async def resume(ctx):
         await ctx.respond("Music resumed.")
     else:
         await ctx.respond("Music is not paused.")
+
+
+@bot.slash_command(name="favorite")
+async def favorite(ctx):
+    guild_id = ctx.guild.id
+
+    if guild_id not in players:
+        await ctx.respond("No music is currently playing in this server.")
+        return
+
+    currently_playing = db_cog.get_currently_playing(ctx.channel.id)
+    if not currently_playing:
+        await ctx.respond("No track is currently playing to favorite.")
+        return
+
+    track_id, title, author, link, queued_by = currently_playing
+
+    # Check if the song is already in the favorites
+    if db_cog.check_favorite(link, ctx.author.id):
+        await ctx.respond("This song is already in your favorites.")
+        return
+
+    db_cog.add_to_favorites(title, author, link, ctx.author.id)
+    await ctx.respond(f"Added {title} by {author} to your favorites.")
+
+
+@bot.slash_command(name="playfavorites")
+async def play_favorites(ctx):
+    guild_id = ctx.guild.id
+
+    if guild_id not in players:
+        vc: wavelink.Player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
+        players[guild_id] = vc  # Store the player instance in the dictionary
+    else:
+        vc = players[guild_id]
+
+    if ctx.author.voice.channel.id != vc.channel.id:
+        return await ctx.respond("You must be in the same voice channel as the bot.")
+
+    favorites = db_cog.get_favorites(ctx.author.id)
+    if not favorites:
+        await ctx.respond("You have no favorite songs.")
+        return
+
+    for title, author, link in favorites:
+        # Add each favorite song to the track_queue table
+        db_cog.add_to_queue(ctx.channel.id, title, author, link, ctx.author.id)
+
+    if not vc.is_playing():
+        # If nothing is currently playing, play the next track in the queue
+        next_track_info = db_cog.fetch_next_track(ctx.channel.id)
+        if next_track_info:
+            track_id, title, author, link = next_track_info
+            track = await wavelink.YouTubeTrack.search(link)
+            if track[0]:
+                await vc.play(track[0])
+                await ctx.respond(f"Playing {title} by {author}")
+
+    else:
+        await ctx.respond(f"Added {len(favorites)} songs to the queue from your favorites.")
 
 
 if __name__ == '__main__':

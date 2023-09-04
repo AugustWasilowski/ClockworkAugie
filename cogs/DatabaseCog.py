@@ -1,4 +1,5 @@
 import sqlite3
+from typing import List, Tuple, Dict
 
 
 class DatabaseCog:
@@ -55,6 +56,19 @@ class DatabaseCog:
                 );
                 """
         self.cursor.execute(create_track_queue_table_query)
+        self.conn.commit()
+
+        create_favorite_table_query = """
+            CREATE TABLE IF NOT EXISTS favorites (
+                id INTEGER PRIMARY KEY,
+                title TEXT NOT NULL,
+                author TEXT NOT NULL,
+                link TEXT NOT NULL,
+                queued_by INTEGER NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        """
+        self.cursor.execute(create_favorite_table_query)
         self.conn.commit()
 
     def fetch_recent_messages(self, channel_id, limit=20):
@@ -136,7 +150,8 @@ class DatabaseCog:
 
     def get_currently_playing(self, channel_id):
         print(f"Retrieve the currently playing track for channel {channel_id}")
-        self.cursor.execute("SELECT id, title, author, link FROM track_queue WHERE channel_id = ? AND playing = TRUE",
+        self.cursor.execute("SELECT id, title, author, link, queued_by FROM track_queue WHERE channel_id = ? AND "
+                            "playing = TRUE",
                             (channel_id,))
         return self.cursor.fetchone()
 
@@ -145,17 +160,38 @@ class DatabaseCog:
         self.cursor.execute("UPDATE track_queue SET playing = FALSE WHERE channel_id = ?", (channel_id,))
         self.conn.commit()
 
-    def clear_queue_for_channel(self, channel_id):
-        print(f"Clearing the playlist queue for voice channel {channel_id}.")
+    def clear_queue_for_channel(self):
+        print(f"Clearing the playlist queue.")
         query = """
-        DELETE FROM track_queue WHERE channel_id = ?
+        DELETE FROM track_queue
         """
-        self.cursor.execute(query, (channel_id,))
+        self.cursor.execute(query, ())
         self.conn.commit()
+
+    def check_favorite(self, link: str, user_id: int) -> bool:
+        print(f"Check if the song is already in the user's favorites.")
+        self.cursor.execute("""
+            SELECT 1 FROM favorites WHERE link = ? AND queued_by = ?
+        """, (link, user_id))
+        return bool(self.cursor.fetchone())
+
+    def add_to_favorites(self, title: str, author: str, link: str, user_id: int) -> None:
+        print(f"Add {title} to the {user_id}'s favorites.")
+        self.cursor.execute("""
+            INSERT INTO favorites (title, author, link, queued_by)
+            VALUES (?, ?, ?, ?)
+        """, (title, author, link, user_id))
+        self.conn.commit()
+
+    def get_favorites(self, user_id: int) -> List[Tuple[str, str, str]]:
+        print(f"Retrieve all the favorite tracks of a user, {user_id}.")
+        self.cursor.execute("""
+            SELECT title, author, link FROM favorites WHERE queued_by = ?
+        """, (user_id,))
+        return self.cursor.fetchall()
 
     def close(self):
         self.conn.close()
 
 
-# Let's instantiate the DatabaseCog for further use
 db_cog = DatabaseCog()
