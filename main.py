@@ -1,5 +1,3 @@
-import random
-
 from dotenv import load_dotenv
 import asyncio
 import os
@@ -69,7 +67,6 @@ async def shutdown(bot):
 
 
 async def process_ssa_message(interaction, message):
-    # Acknowledge the interaction if it exists
     try:
         if hasattr(interaction.response, 'defer'):
             await interaction.response.defer()
@@ -77,7 +74,6 @@ async def process_ssa_message(interaction, message):
         print(f"{e}")
         pass
 
-    # Get the user id
     userid = "user"
     try:
         userid = str(interaction.message.author.id)
@@ -100,15 +96,12 @@ async def process_ssa_message(interaction, message):
             messages=messages
         )
     except openai.error.APIError as e:
-        # Handle API error here, e.g. retry or log
         print(f"OpenAI API returned an API Error: {e}")
         pass
     except openai.error.APIConnectionError as e:
-        # Handle connection error here
         print(f"Failed to connect to OpenAI API: {e}")
         pass
     except openai.error.RateLimitError as e:
-        # Handle rate limit error (we recommend using exponential backoff)
         print(f"OpenAI API request exceeded rate limit: {e}")
         pass
 
@@ -116,9 +109,7 @@ async def process_ssa_message(interaction, message):
     if content:
         print(content)
         if len(content) > 2000:
-            # Create a temporary file in memory
             with io.BytesIO(content.encode()) as f:
-                # Send the content as a file
                 await interaction.followup.send(file=discord.File(f, filename="response.txt"))
         else:
             await interaction.followup.send(f"{content}")
@@ -133,9 +124,7 @@ def get_tracks_from_playlist(url):
 
 @bot.event
 async def on_message(message):
-    # If the bot is mentioned and the message isn't from the bot itself
     if bot.user in message.mentions and message.author != bot.user:
-        # Store message in the database
         db_cog.insert_chat_history(message.channel.id, message.author.id, message.content)
         print(message.content)
 
@@ -166,8 +155,6 @@ async def on_wavelink_track_end(payload: TrackEventPayload) -> None:
     print(f"Done playing {payload.original.title} because {payload.reason}")
 
     vc: wavelink.Player = payload.player
-
-    # Only try to play the next song if the reason is FINISHED
     if payload.reason != "REPLACED":
         currently_playing = db_cog.get_currently_playing(payload.player.channel.id)
         if currently_playing:
@@ -198,9 +185,7 @@ async def showqueue(ctx):
     message = "\n".join(tracks_list)
 
     if len(message) > 2000:
-        # Create a temporary file in memory
         with io.BytesIO(message.encode()) as f:
-            # Send the content as a file
             await ctx.respond(
                 content="The queue is too long to display here. Download the attached file to view the full queue.",
                 file=discord.File(f, filename="queue.txt"))
@@ -264,7 +249,7 @@ async def play(ctx, search: str):
     guild_id = ctx.guild.id
     if guild_id not in players:
         vc: wavelink.Player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
-        players[guild_id] = vc  # Store the player instance in the dictionary
+        players[guild_id] = vc
     else:
         vc = players[guild_id]
 
@@ -379,11 +364,9 @@ async def play_favorites(ctx):
         return
 
     for title, author, link in favorites:
-        # Add each favorite song to the track_queue table
         db_cog.add_to_queue(ctx.channel.id, title, author, link, ctx.author.id)
 
     if not vc.is_playing():
-        # If nothing is currently playing, play the next track in the queue
         next_track_info = db_cog.fetch_next_track(ctx.channel.id)
         if next_track_info:
             track_id, title, author, link = next_track_info
@@ -396,13 +379,12 @@ async def play_favorites(ctx):
         await ctx.respond(f"Added {len(favorites)} songs to the queue from your favorites.")
 
 
-@bot.slash_command(name="toptracks")
+@bot.slash_command(name="toptracks", description="Will use ChatGPT to get the top N number of criticaly acclaimed "
+                                                 "tracks by an artist")
 async def top_tracks(ctx, artist: str, num_tracks: int = 10):
     await ctx.defer()
 
     toptracks = await query_chat_gpt(artist, num_tracks)
-
-    # Split the string by newline and filter out any empty strings
     tracks_list = [track.split('. ')[1].strip('“”') for track in toptracks.strip().split('\n') if track]
 
     for track_title in tracks_list:
