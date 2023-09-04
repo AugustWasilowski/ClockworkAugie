@@ -290,6 +290,20 @@ async def play_playlist(ctx, playlist_url: str):
     # Send a follow-up message with the results
     await ctx.send(f"Added {len(tracks)} songs to the queue from the playlist.")
 
+    @bot.slash_command(name="clear_queue")
+    async def clear_queue(ctx):
+        # Get the voice channel ID from the author's current voice state
+        voice_channel_id = ctx.author.voice.channel.id
+
+        # Check if the user is in a voice channel
+        if not voice_channel_id:
+            await ctx.respond("You must be in a voice channel to clear the queue.")
+            return
+
+        # Clear the playlist in the database for this voice channel
+        db_cog.clear_queue_for_channel(voice_channel_id)
+
+        await ctx.respond("Playlist cleared for this voice channel.")
 
 
 if __name__ == '__main__':

@@ -145,6 +145,13 @@ class DatabaseCog:
         self.cursor.execute("UPDATE track_queue SET playing = FALSE WHERE channel_id = ?", (channel_id,))
         self.conn.commit()
 
+    def clear_queue_for_channel(self, channel_id):
+        print(f"Clearing the playlist queue for voice channel {channel_id}.")
+        query = """
+        DELETE FROM track_queue WHERE channel_id = ?
+        """
+        self.cursor.execute(query, (channel_id,))
+        self.conn.commit()
 
     def close(self):
         self.conn.close()
