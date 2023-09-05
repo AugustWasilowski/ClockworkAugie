@@ -497,7 +497,9 @@ async def query_chat_gpt_for_top_tracks(artist: str) -> List[str]:
 
 @bot.slash_command(name="help", description="Get a list of available commands and their descriptions.")
 async def help_command(ctx):
-    embed = discord.Embed(title="Second Shift Augie Commands", description="Here's a list of available commands:",
+    embed = discord.Embed(title="Second Shift Augie Commands", description="Here's a list of available commands. It's "
+                                                                           "best to use the commands in the #Musak "
+                                                                           "channel's text chat.",
                           color=discord.Color.blue())
 
     # Add commands and their descriptions to the embed
