@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 import asyncio
 import os
 import io
+from typing import List
 import sys
 from cogs.logging import get_logger
 import openai
@@ -402,7 +403,7 @@ async def top_tracks(ctx, artist: str, num_tracks: int = 10):
 
 
 @bot.slash_command(name="bottomtracks", description="Will use ChatGPT to get the top N number of lesser known "
-                                                 "tracks by an artist")
+                                                    "tracks by an artist")
 async def bottom_tracks(ctx, artist: str, num_tracks: int = 10):
     await ctx.defer()
 
@@ -446,9 +447,54 @@ async def query_chat_gpt_bottom_tracks(artist: str, num_tracks: int) -> str:
     print(result)
     return result
 
+
+@bot.slash_command(name="radio", description="Adds tracks based on similar artists.")
+async def radio(ctx, artist: str):
+    await ctx.defer()
+
+    # Step 1: Query GPT for similar artists
+    similar_artists = await query_chat_gpt_for_artists(artist)
+
+    # Step 2: For each similar artist, get their top tracks
+    for similar_artist in similar_artists:
+        top_tracks = await query_chat_gpt_for_top_tracks(similar_artist)
+        for track_title in top_tracks:
+            search = f"{similar_artist} {track_title}"
+            tracks = await wavelink.YouTubeTrack.search(search)
+            if tracks:
+                track = tracks[0]
+                db_cog.add_to_queue(ctx.channel.id, track.title, track.author, track.uri, ctx.author.id)
+                ctx.edit(content=f"Adding {track.title} by {track.author} to queue")
+
+    await ctx.respond(f"Added tracks based on similar artists to {artist} to the queue!")
+
+
+async def query_chat_gpt_for_artists(artist: str) -> List[str]:
+    response = openai.Completion.create(
+        engine="text-davinci-003",
+        prompt=f"Which artists are similar to {artist}? Give it to me in a comma-separated list.",
+        max_tokens=1000
+    )
+    # Parse and return the list of artists.
+    # This assumes the GPT model returns a comma-separated list.
+    return [a.strip() for a in response.choices[0].text.split(',')]
+
+
+async def query_chat_gpt_for_top_tracks(artist: str) -> List[str]:
+    response = openai.Completion.create(
+        engine="text-davinci-003",
+        prompt=f"What are the top tracks by {artist}? Give it to me in a list.",
+        max_tokens=1500
+    )
+    # Parse and return the list of tracks.
+    # This assumes the GPT model returns tracks separated by newlines.
+    return [track.strip() for track in response.choices[0].text.split('\n') if track]
+
+
 @bot.slash_command(name="help", description="Get a list of available commands and their descriptions.")
 async def help_command(ctx):
-    embed = discord.Embed(title="Second Shift Augie Commands", description="Here's a list of available commands:", color=discord.Color.blue())
+    embed = discord.Embed(title="Second Shift Augie Commands", description="Here's a list of available commands:",
+                          color=discord.Color.blue())
 
     # Add commands and their descriptions to the embed
     embed.add_field(name="/play <URL/track name>", value="Play a specific track or YouTube link.", inline=False)
@@ -458,14 +504,20 @@ async def help_command(ctx):
     embed.add_field(name="/showqueue", value="Display the current queue of tracks.", inline=False)
     embed.add_field(name="/clear_queue", value="Clears the queue.", inline=False)
     embed.add_field(name="/currentlyplaying", value="Shows the currently playing track information.", inline=False)
-    embed.add_field(name="/favorite", value="Save the currently playing track as a favorite to your own personal playlist.", inline=False)
+    embed.add_field(name="/favorite",
+                    value="Save the currently playing track as a favorite to your own personal playlist.", inline=False)
     embed.add_field(name="/playfavorites", value="Add tracks from your favorites to the queue.", inline=False)
-    embed.add_field(name="/toptracks <artist>,  <num_tracks=10>", value="Adds the top tracks of a specific artist and add them to the queue.", inline=False)
-    embed.add_field(name="/bottomtracks <artist>, <num_tracks=10>", value="Adds lesser known tracks of a specific artist to the queue.", inline=False)
+    embed.add_field(name="/toptracks <artist>,  <num_tracks=10>",
+                    value="Adds the top tracks of a specific artist and add them to the queue.", inline=False)
+    embed.add_field(name="/bottomtracks <artist>, <num_tracks=10>",
+                    value="Adds lesser known tracks of a specific artist to the queue.", inline=False)
+    embed.add_field(name="/radio <artist>", value="Populates the queue with a BUNCH of tracks that are from artists "
+                                                  "similar to your query", inline=False)
     embed.add_field(name="/ping", value="Returns your ping in milliseconds to the bot.", inline=False)
     # ... add more commands as needed
 
     await ctx.respond(embed=embed)
+
 
 if __name__ == '__main__':
     bot.load_extension("cogs.ssa")
