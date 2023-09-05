@@ -208,11 +208,11 @@ async def currentlyplaying(ctx):
 async def skip(ctx):
     guild_id = ctx.guild.id
 
-    if guild_id not in players:
+    if guild_id in players and players[guild_id].is_connected:
+        vc = players[guild_id]
+    else:
         vc: wavelink.Player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
         players[guild_id] = vc  # Store the player instance in the dictionary
-    else:
-        vc = players[guild_id]
 
     if ctx.author.voice.channel.id != vc.channel.id:
         return await ctx.respond("You must be in the same voice channel as the bot.")
