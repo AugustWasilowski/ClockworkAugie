@@ -460,11 +460,15 @@ async def radio(ctx, artist: str):
         top_tracks = await query_chat_gpt_for_top_tracks(similar_artist)
         for track_title in top_tracks:
             search = f"{similar_artist} {track_title}"
-            tracks = await wavelink.YouTubeTrack.search(search)
-            if tracks:
-                track = tracks[0]
-                db_cog.add_to_queue(ctx.channel.id, track.title, track.author, track.uri, ctx.author.id)
-                ctx.edit(content=f"Adding {track.title} by {track.author} to queue")
+            try:
+                tracks = await wavelink.YouTubeTrack.search(search)
+                if tracks:
+                    track = tracks[0]
+                    db_cog.add_to_queue(ctx.channel.id, track.title, track.author, track.uri, ctx.author.id)
+                    await ctx.edit(content=f"Adding {track.title} by {track.author} to queue")
+            except ValueError as e:
+                print(f"Failed to load tracks for query: {search}. Error: {e}")
+                await ctx.respond(f"Couldn't find tracks for {artist}. Continuing with other artists...")
 
     await ctx.respond(f"Added tracks based on similar artists to {artist} to the queue!")
 
