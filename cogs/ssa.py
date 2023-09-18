@@ -12,6 +12,8 @@ class ssa(commands.Cog):
         self.bot = bot
 
 
+
+
 def setup(bot):
     bot.add_cog(ssa(bot))
     print("Loaded Second Shift Augie.")

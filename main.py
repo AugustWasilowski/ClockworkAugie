@@ -45,8 +45,8 @@ async def on_ready():
     channel = bot.get_channel(int(CHANNEL_ID))
     # await channel.send(MOTD)
     bot.logger.info(f'Logged in as {bot.user.name} ({bot.user.id})')
-    node: wavelink.Node = wavelink.Node(uri='http://ash.lavalink.alexanderof.xyz:2333', password='lavalink',
-                                        secure=False)
+    node: wavelink.Node = wavelink.Node(uri='eu-lavalink.lexnet.cc:443', password='lexn3tl@val!nk',
+                                        secure=True)
     await wavelink.NodePool.connect(client=bot, nodes=[node])
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name='user commands'))
     for guild in bot.guilds:
